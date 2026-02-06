@@ -1,4 +1,5 @@
 import re
+import threading
 import tkinter as tk
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -73,13 +74,30 @@ class MainWindow(tk.Tk):
         if self._agent is None:
             self._query_panel.set_status("Please open a CSV file first.")
             return
+        
+        # Disable the send button to prevent multiple queries
+        self._query_panel.set_send_enabled(False)
+        
+        # Run the query in a background thread
+        thread = threading.Thread(
+            target=self._run_query_thread,
+            args=(query,),
+            daemon=True
+        )
+        thread.start()
+
+    def _run_query_thread(self, query: str) -> None:
+        """Run the query in a background thread and schedule UI updates."""
         try:
             result = run_query(self._agent, query)
+            # Schedule UI update on the main thread
+            self.after(0, self._handle_query_result, result)
         except Exception as exc:  # noqa: BLE001
-            self._query_panel.set_status("Error running query.")
-            messagebox.showerror("Query Error", str(exc))
-            return
+            # Schedule error handling on the main thread
+            self.after(0, self._handle_query_error, exc)
 
+    def _handle_query_result(self, result: Dict[str, Any]) -> None:
+        """Handle query result on the main thread."""
         # Show intermediate reasoning steps (if any), then the final answer,
         # all formatted as Agent messages in the conversation view.
         steps = result.get("steps") or []
@@ -96,6 +114,15 @@ class MainWindow(tk.Tk):
         # Add a blank line to visually separate conversation turns.
         self._query_panel.append_response("")
         self._query_panel.set_status("Done.")
+        # Re-enable the send button
+        self._query_panel.set_send_enabled(True)
+
+    def _handle_query_error(self, exc: Exception) -> None:
+        """Handle query error on the main thread."""
+        self._query_panel.set_status("Error running query.")
+        messagebox.showerror("Query Error", str(exc))
+        # Re-enable the send button
+        self._query_panel.set_send_enabled(True)
 
     def _extract_python_code(self, text: str) -> Optional[str]:
         """Extract the first Python code block (```python ... ```) from text."""

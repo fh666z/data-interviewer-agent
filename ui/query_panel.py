@@ -82,3 +82,6 @@ class QueryPanel(tk.Frame):
     def set_status(self, text: str) -> None:
         self._status_var.set(text)
 
+    def set_send_enabled(self, enabled: bool) -> None:
+        """Enable or disable the send button."""
+        self._send_btn.config(state=tk.NORMAL if enabled else tk.DISABLED)

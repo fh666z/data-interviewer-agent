@@ -64,7 +64,7 @@ def run_query(agent, query: str) -> Dict[str, Any]:
     """
     callback = StepLoggingCallback()
     # LangChain agents accept callbacks at call-time.
-    response = agent.run(query, callbacks=[callback])
+    response = agent.invoke(query, callbacks=[callback])
     return {
         "text": str(response),
         "steps": callback.messages,
