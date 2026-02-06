@@ -11,9 +11,9 @@ def run_cli() -> None:
     parser = argparse.ArgumentParser(
         description="Query a CSV file using a LangChain + Gemini dataframe agent."
     )
-    parser.add_argument("csv_path", type=str, help="Path to the CSV file.")
+    parser.add_argument("-csv_path", type=str, help="Path to the CSV file.")
     parser.add_argument(
-        "query",
+        "-query",
         type=str,
         nargs="+",
         help="Natural language query about the data.",

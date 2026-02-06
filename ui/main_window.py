@@ -36,7 +36,7 @@ class MainWindow(tk.Tk):
         paned = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
         paned.pack(fill=tk.BOTH, expand=True)
 
-        self._viz_panel = VisualizationPanel(paned, borderwidth=1, relief=tk.SUNKEN)
+        self._viz_panel = VisualizationPanel(paned, borderwidth=1, relief=tk.BROWSE)
         self._query_panel = QueryPanel(paned, on_submit=self._on_query)
 
         paned.add(self._viz_panel, weight=1)
@@ -60,6 +60,10 @@ class MainWindow(tk.Tk):
             messagebox.showerror("Error creating agent", str(exc))
             self._agent = None
             return
+        
+        # Display the DataFrame contents in the visualization panel
+        self._viz_panel.show_dataframe(df)
+        
         messagebox.showinfo("CSV Loaded", f"Loaded {len(df)} rows from {file_path}")
 
     def _on_query(self, query: str) -> None:
@@ -73,8 +77,19 @@ class MainWindow(tk.Tk):
             messagebox.showerror("Query Error", str(exc))
             return
 
+        # Show intermediate reasoning steps (if any), then the final answer,
+        # all formatted as Agent messages in the conversation view.
+        steps = result.get("steps") or []
+        if steps:
+            for step in steps:
+                self._query_panel.append_response(f"Agent: {step}")
+
         text = result.get("text", "")
-        self._query_panel.append_response(text)
+        if text:
+            self._query_panel.append_response(f"Agent: {text}")
+
+        # Add a blank line to visually separate conversation turns.
+        self._query_panel.append_response("")
         self._query_panel.set_status("Done.")
 
 

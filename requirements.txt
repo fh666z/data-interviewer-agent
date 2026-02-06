@@ -1,5 +1,6 @@
-langchain>=0.2.0
+langchain>=0.4.23
 langchain-google-genai>=0.1.0
+langchain-experimental
 pandas>=2.0.0
 plotly>=5.20.0
 kaleido>=0.2.1

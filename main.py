@@ -19,8 +19,8 @@ def main() -> None:
         action="store_true",
         help="Launch the Tkinter UI instead of running a one-off CLI query.",
     )
-    parser.add_argument("csv_path", nargs="?", help="Path to CSV file for CLI mode.")
-    parser.add_argument("query", nargs=argparse.REMAINDER, help="Query text for CLI.")
+    parser.add_argument("-csv_path", nargs="?", help="Path to CSV file for CLI mode.")
+    parser.add_argument("-query", nargs=argparse.REMAINDER, help="Query text for CLI.")
 
     args = parser.parse_args()
 

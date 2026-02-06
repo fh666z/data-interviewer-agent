@@ -15,9 +15,22 @@ class QueryPanel(tk.Frame):
         super().__init__(master, **kwargs)
         self._on_submit = on_submit
 
+        # Conversation area on top
+        self._response = scrolledtext.ScrolledText(self, state="disabled")
+        self._response.pack(fill=tk.BOTH, expand=True, padx=4, pady=(4, 4))
+
+        # Status label
+        self._status_var = tk.StringVar(value="")
+        self._status_label = tk.Label(self, textvariable=self._status_var, anchor="w")
+        self._status_label.pack(fill=tk.X, padx=4, pady=(0, 4))
+
+        # Input field below conversation
         self._input = scrolledtext.ScrolledText(self, height=5)
         self._input.pack(fill=tk.X, padx=4, pady=4)
+        # Pressing Enter in the input field will send the query.
+        self._input.bind("<Return>", self._handle_enter)
 
+        # Buttons below input
         button_frame = tk.Frame(self)
         button_frame.pack(fill=tk.X, padx=4)
 
@@ -31,19 +44,24 @@ class QueryPanel(tk.Frame):
         )
         self._clear_btn.pack(side=tk.LEFT, padx=(4, 0))
 
-        self._response = scrolledtext.ScrolledText(self, state="disabled")
-        self._response.pack(fill=tk.BOTH, expand=True, padx=4, pady=(4, 4))
-
-        self._status_var = tk.StringVar(value="")
-        self._status_label = tk.Label(self, textvariable=self._status_var, anchor="w")
-        self._status_label.pack(fill=tk.X, padx=4, pady=(0, 4))
-
     def _handle_send(self) -> None:
         query = self._input.get("1.0", tk.END).strip()
         if not query:
             return
+        # Log the user's message in the conversation area.
+        self.append_response(f"User: {query}")
+        # Clear the input pane after sending.
+        self._input.delete("1.0", tk.END)
         self.set_status("Running query...")
         self._on_submit(query)
+
+    def _handle_enter(self, event: tk.Event) -> str:  # type: ignore[type-arg]
+        """Handle the Enter key inside the input field by sending the query.
+
+        Returning \"break\" prevents Tkinter from inserting a newline.
+        """
+        self._handle_send()
+        return "break"
 
     def _handle_clear(self) -> None:
         self._input.delete("1.0", tk.END)
