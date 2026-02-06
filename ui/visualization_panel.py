@@ -7,6 +7,8 @@ import plotly.io as pio
 from PIL import Image, ImageTk
 import tkinter as tk
 from tkinter import ttk
+import matplotlib.pyplot as plt
+import io
 
 
 class VisualizationPanel(tk.Frame):
@@ -104,3 +106,27 @@ class VisualizationPanel(tk.Frame):
         self._current_photo = photo
         self._image_label.config(image=photo)
 
+    def show_matplotlib_figure(self, fig: plt.Figure) -> None:
+        """Render a matplotlib figure as an image and display it."""
+        # Clear any existing table display
+        if self._table_frame:
+            self._table_frame.destroy()
+            self._table_frame = None
+
+        # Show the image label when showing figure
+        self._image_label.pack(fill=tk.BOTH, expand=True)
+
+        # Save matplotlib figure to a BytesIO buffer
+        buf = io.BytesIO()
+        fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+        buf.seek(0)
+        
+        # Load and resize the image
+        image = Image.open(buf)
+        image = image.resize((self.winfo_width() or 800, self.winfo_height() or 600))
+        photo = ImageTk.PhotoImage(image)
+        self._current_photo = photo
+        self._image_label.config(image=photo)
+        
+        # Close the figure to free memory
+        plt.close(fig)

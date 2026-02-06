@@ -1,13 +1,20 @@
 import os
 from typing import Any, Dict, List
 
+import matplotlib
 import pandas as pd
 from dotenv import load_dotenv
 from langchain_core.callbacks import BaseCallbackHandler  # type: ignore[attr-defined]
-
 from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
 from langchain_google_genai import ChatGoogleGenerativeAI
 
+# Use TkAgg backend which works with Tkinter and allows showing windows
+# This must be set before importing pyplot
+try:
+    matplotlib.use("TkAgg")
+except Exception:  # noqa: BLE001
+    # Fallback to Agg if TkAgg is not available
+    matplotlib.use("Agg")
 
 load_dotenv()
 
@@ -18,6 +25,7 @@ class StepLoggingCallback(BaseCallbackHandler):
     def __init__(self) -> None:
         super().__init__()
         self.messages: List[str] = []
+        self.executed_code: List[str] = []  # Track code that was executed
 
     def on_agent_action(self, action, **kwargs) -> None:  # type: ignore[override]
         # `action.log` typically contains the thought + tool call description.
@@ -26,6 +34,26 @@ class StepLoggingCallback(BaseCallbackHandler):
         except Exception:  # noqa: BLE001
             log = str(action)
         self.messages.append(f"Agent action: {log}")
+        
+        # Extract code from tool input if it's a python_repl action
+        try:
+            # Try different ways to get the tool input
+            tool_input = getattr(action, "tool_input", None)
+            if not tool_input:
+                # Try tool_input_str
+                tool_input = getattr(action, "tool_input_str", None)
+            if not tool_input:
+                # Try to extract from the action string representation
+                action_str = str(action)
+                if "Action Input:" in action_str:
+                    parts = action_str.split("Action Input:", 1)
+                    if len(parts) > 1:
+                        tool_input = parts[1].strip()
+            
+            if tool_input and isinstance(tool_input, str):
+                self.executed_code.append(tool_input)
+        except Exception:  # noqa: BLE001
+            pass
 
     def on_tool_end(self, output: str, **kwargs) -> None:  # type: ignore[override]
         self.messages.append(f"Tool output: {output}")
@@ -68,5 +96,6 @@ def run_query(agent, query: str) -> Dict[str, Any]:
     return {
         "text": str(response),
         "steps": callback.messages,
+        "executed_code": callback.executed_code,  # Include executed code for plot detection
     }
 

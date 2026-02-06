@@ -8,6 +8,7 @@ from tkinter import filedialog, messagebox, ttk
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import matplotlib.pyplot as plt
 
 from agent.dataframe_agent import create_dataframe_agent, run_query
 from ui.query_panel import QueryPanel
@@ -111,6 +112,10 @@ class MainWindow(tk.Tk):
             # Try to extract and execute any plotting code returned by the agent.
             self._maybe_run_plot_code(text)
 
+        # Check executed code for matplotlib plots
+        executed_code = result.get("executed_code") or []
+        self._check_for_matplotlib_plots(executed_code)
+
         # Add a blank line to visually separate conversation turns.
         self._query_panel.append_response("")
         self._query_panel.set_status("Done.")
@@ -167,6 +172,92 @@ class MainWindow(tk.Tk):
         except Exception as exc:  # noqa: BLE001
             # Don't break the app if plotting fails; just show an error.
             messagebox.showerror("Plot Execution Error", str(exc))
+
+    def _check_for_matplotlib_plots(self, executed_code: list) -> None:
+        """Check executed code for matplotlib plots and display them in separate windows."""
+        if self._df is None or not executed_code:
+            return
+
+        # Look for code that uses matplotlib
+        matplotlib_code = None
+        for code in executed_code:
+            if isinstance(code, str) and ("plt." in code or "matplotlib" in code or ".plot(" in code):
+                matplotlib_code = code
+                break
+
+        if not matplotlib_code:
+            return
+
+        # Schedule execution on main thread to allow matplotlib windows to show
+        self.after(0, self._execute_matplotlib_code, matplotlib_code)
+
+    def _execute_matplotlib_code(self, matplotlib_code: str) -> None:
+        """Execute matplotlib code on the main thread and show windows."""
+        if self._df is None:
+            return
+
+        try:
+            # Prepare execution environment - execute on main thread so windows can show
+            global_ns: Dict[str, Any] = {
+                "__name__": "__agent_plot__",
+                "df": self._df,
+                "plt": plt,
+                "pd": pd,
+            }
+            
+            local_ns: Dict[str, Any] = {}
+            
+            # Replace plt.show() to show windows non-blocking
+            original_show = plt.show
+            
+            def non_blocking_show():
+                """Show matplotlib windows without blocking the UI."""
+                plt.show(block=False)
+            
+            plt.show = non_blocking_show
+            
+            # Execute the code - this will create plots and call plt.show()
+            exec(matplotlib_code, global_ns, local_ns)  # noqa: S102
+            
+            # Restore original plt.show
+            plt.show = original_show
+
+            # Also capture figures for display in UI panel
+            captured_figures = []
+            
+            # Check for axes objects returned by pandas plotting
+            for val in list(local_ns.values()) + list(global_ns.values()):
+                try:
+                    if hasattr(val, "figure") and hasattr(val, "get_xlim"):
+                        # It's an axes object, get the figure
+                        fig = val.figure
+                        if fig.get_axes():
+                            captured_figures.append(fig)
+                    elif hasattr(val, "savefig") and hasattr(val, "get_axes"):
+                        # It's a figure object
+                        if val.get_axes():
+                            captured_figures.append(val)
+                except Exception:  # noqa: BLE001
+                    pass
+
+            # Also check current figure (in case code created plot but didn't assign it)
+            try:
+                fig = plt.gcf()
+                if fig.get_axes():
+                    captured_figures.append(fig)
+            except Exception:  # noqa: BLE001
+                pass
+
+            # Display figures in UI panel as well
+            if captured_figures:
+                self._viz_panel.show_matplotlib_figure(captured_figures[0])
+        except Exception as exc:  # noqa: BLE001
+            # Restore plt.show in case of error
+            try:
+                plt.show = original_show
+            except Exception:  # noqa: BLE001
+                pass
+            # Don't break the app if plotting fails
 
 
 def run_ui() -> None:
