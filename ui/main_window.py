@@ -27,13 +27,16 @@ class MainWindow(tk.Tk):
 
         self._create_menu()
         self._create_layout()
+        
+        # Bind cleanup to window close events
+        self.protocol("WM_DELETE_WINDOW", self._on_closing)
 
     def _create_menu(self) -> None:
         menubar = tk.Menu(self)
         file_menu = tk.Menu(menubar, tearoff=0)
         file_menu.add_command(label="Open CSV", command=self._open_csv)
         file_menu.add_separator()
-        file_menu.add_command(label="Exit", command=self.quit)
+        file_menu.add_command(label="Exit", command=self._on_closing)
         menubar.add_cascade(label="File", menu=file_menu)
         self.config(menu=menubar)
 
@@ -258,6 +261,16 @@ class MainWindow(tk.Tk):
             except Exception:  # noqa: BLE001
                 pass
             # Don't break the app if plotting fails
+
+    def _on_closing(self) -> None:
+        """Handle window close event - cleanup matplotlib figures before closing."""
+        try:
+            # Close all matplotlib figures to prevent runtime errors
+            plt.close("all")
+        except Exception:  # noqa: BLE001
+            pass
+        # Destroy the window
+        self.destroy()
 
 
 def run_ui() -> None:
