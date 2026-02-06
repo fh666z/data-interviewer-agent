@@ -1,9 +1,12 @@
+import re
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
+from tkinter import filedialog, messagebox, ttk
 
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 
 from agent.dataframe_agent import create_dataframe_agent, run_query
 from ui.query_panel import QueryPanel
@@ -36,7 +39,7 @@ class MainWindow(tk.Tk):
         paned = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
         paned.pack(fill=tk.BOTH, expand=True)
 
-        self._viz_panel = VisualizationPanel(paned, borderwidth=1, relief=tk.BROWSE)
+        self._viz_panel = VisualizationPanel(paned, borderwidth=1, relief=tk.SUNKEN)
         self._query_panel = QueryPanel(paned, on_submit=self._on_query)
 
         paned.add(self._viz_panel, weight=1)
@@ -84,13 +87,59 @@ class MainWindow(tk.Tk):
             for step in steps:
                 self._query_panel.append_response(f"Agent: {step}")
 
-        text = result.get("text", "")
+        text = result.get("text", "") or ""
         if text:
             self._query_panel.append_response(f"Agent: {text}")
+            # Try to extract and execute any plotting code returned by the agent.
+            self._maybe_run_plot_code(text)
 
         # Add a blank line to visually separate conversation turns.
         self._query_panel.append_response("")
         self._query_panel.set_status("Done.")
+
+    def _extract_python_code(self, text: str) -> Optional[str]:
+        """Extract the first Python code block (```python ... ```) from text."""
+        match = re.search(r"```python(.*?)```", text, re.DOTALL | re.IGNORECASE)
+        if not match:
+            return None
+        return match.group(1).strip()
+
+    def _maybe_run_plot_code(self, text: str) -> None:
+        """If the agent returned plotting code, execute it and show the figure."""
+        if self._df is None:
+            return
+
+        code = self._extract_python_code(text)
+        if not code:
+            return
+
+        try:
+            # Prepare execution environment with df and Plotly available.
+            global_ns: Dict[str, Any] = {
+                "__name__": "__agent_plot__",
+                "df": self._df,
+                "go": go,
+                "px": px,
+                "pd": pd,
+            }
+            local_ns: Dict[str, Any] = {}
+            exec(code, global_ns, local_ns)  # noqa: S102
+
+            # Heuristic: look for a Plotly Figure named 'fig' or 'figure'.
+            for name in ("fig", "figure"):
+                candidate = local_ns.get(name) or global_ns.get(name)
+                if isinstance(candidate, go.Figure):
+                    self._viz_panel.show_figure(candidate)
+                    return
+
+            # Fallback: search any Figure object in locals/globals.
+            for val in list(local_ns.values()) + list(global_ns.values()):
+                if isinstance(val, go.Figure):
+                    self._viz_panel.show_figure(val)
+                    return
+        except Exception as exc:  # noqa: BLE001
+            # Don't break the app if plotting fails; just show an error.
+            messagebox.showerror("Plot Execution Error", str(exc))
 
 
 def run_ui() -> None:

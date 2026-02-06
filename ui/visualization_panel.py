@@ -32,20 +32,34 @@ class VisualizationPanel(tk.Frame):
         # Clear any existing display
         self.clear()
 
-        # Create a frame for the table with scrollbars
+        # Hide the image label when showing dataframe
+        self._image_label.pack_forget()
+
+        # Create a frame for the table with scrollbars, anchored at top
         self._table_frame = tk.Frame(self)
-        self._table_frame.pack(fill=tk.BOTH, expand=True, padx=4, pady=4)
+        self._table_frame.pack(fill=tk.BOTH, expand=True, padx=4, pady=4, anchor="nw")
+
+        # Create a container frame for proper layout, anchored at top
+        container = tk.Frame(self._table_frame)
+        container.pack(fill=tk.BOTH, expand=True, anchor="nw")
 
         # Create Treeview widget for table display
-        tree = ttk.Treeview(self._table_frame, show="headings")
-        tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        tree = ttk.Treeview(container, show="headings")
+        tree.grid(row=0, column=0, sticky="nsew")
 
-        # Add scrollbars
-        vsb = ttk.Scrollbar(self._table_frame, orient="vertical", command=tree.yview)
-        hsb = ttk.Scrollbar(self._table_frame, orient="horizontal", command=tree.xview)
-        tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
-        vsb.pack(side=tk.RIGHT, fill=tk.Y)
-        hsb.pack(side=tk.BOTTOM, fill=tk.X)
+        # Configure grid weights for proper resizing
+        container.grid_rowconfigure(0, weight=1)
+        container.grid_columnconfigure(0, weight=1)
+
+        # Add vertical scrollbar
+        vsb = ttk.Scrollbar(container, orient="vertical", command=tree.yview)
+        vsb.grid(row=0, column=1, sticky="ns")
+        tree.configure(yscrollcommand=vsb.set)
+
+        # Add horizontal scrollbar
+        hsb = ttk.Scrollbar(container, orient="horizontal", command=tree.xview)
+        hsb.grid(row=1, column=0, sticky="ew")
+        tree.configure(xscrollcommand=hsb.set)
 
         # Configure columns
         columns = list(df.columns)
@@ -70,7 +84,7 @@ class VisualizationPanel(tk.Frame):
                 text=f"Showing first {max_rows} of {len(df)} rows",
                 font=("Arial", 9),
             )
-            info_label.pack(side=tk.BOTTOM, fill=tk.X)
+            info_label.pack(side=tk.BOTTOM, fill=tk.X, padx=4, pady=2)
 
     def show_figure(self, fig: go.Figure) -> None:
         """Render a Plotly figure as an image and display it."""
@@ -78,6 +92,9 @@ class VisualizationPanel(tk.Frame):
         if self._table_frame:
             self._table_frame.destroy()
             self._table_frame = None
+
+        # Show the image label when showing figure
+        self._image_label.pack(fill=tk.BOTH, expand=True)
 
         tmp_path = Path("_tmp_plot.png")
         pio.write_image(fig, tmp_path)
